@@ -1,23 +1,34 @@
+using Microsoft.EntityFrameworkCore;
+using WebhookRelay.Api.Data;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
 builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+builder.Services.AddDbContext<RelayDbContext>(options =>
+    options.UseSqlite(builder.Configuration.GetConnectionString("Relay")));
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Create or update the database on startup. Fine for a single small service;
+// with more than one instance this should be a separate deploy step.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<RelayDbContext>();
+    db.Database.Migrate();
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
-
-app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();
+
+// Lets the test project start the app with WebApplicationFactory
+public partial class Program
+{
+}
