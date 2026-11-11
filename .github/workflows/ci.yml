@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # lets me start a run by hand from the Actions tab
+  workflow_dispatch:
 
 jobs:
   test:
