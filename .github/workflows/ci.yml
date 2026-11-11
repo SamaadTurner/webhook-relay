@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release
+
+  docker:
+    # Only build the image if the tests passed
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build image
+        run: docker build -t webhook-relay .
+
+      # Start the container and make sure it actually answers
+      - name: Smoke test
+        run: |
+          docker run -d --name relay -p 8080:8080 webhook-relay
+          for i in $(seq 1 20); do
+            if curl -sf http://localhost:8080/health; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs relay
+          exit 1
