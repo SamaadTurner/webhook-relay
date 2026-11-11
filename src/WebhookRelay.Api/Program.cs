@@ -1,10 +1,16 @@
 using Microsoft.EntityFrameworkCore;
 using WebhookRelay.Api.Data;
+using WebhookRelay.Api.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+
+builder.Services.Configure<RelayOptions>(builder.Configuration.GetSection("Relay"));
+
+// Anything that needs "now" asks for TimeProvider, so tests can use a fake clock
+builder.Services.AddSingleton(TimeProvider.System);
 
 builder.Services.AddDbContext<RelayDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("Relay")));
