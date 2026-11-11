@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using WebhookRelay.Api.Data;
 using WebhookRelay.Api.Options;
@@ -5,7 +6,14 @@ using WebhookRelay.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services
+    .AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Send statuses as "Pending" / "Delivered" / "Failed" instead of 0 / 1 / 2
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
+
 builder.Services.AddOpenApi();
 
 builder.Services.Configure<RelayOptions>(builder.Configuration.GetSection("Relay"));
@@ -31,6 +39,9 @@ if (workerEnabled)
     builder.Services.AddHostedService<DeliveryWorker>();
 }
 
+// /health also checks that the database can be reached
+builder.Services.AddHealthChecks().AddDbContextCheck<RelayDbContext>();
+
 var app = builder.Build();
 
 // Create or update the database on startup. Fine for a single small service;
@@ -44,9 +55,24 @@ using (var scope = app.Services.CreateScope())
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+
+    // A stand-in destination so the whole flow can be tried on one machine.
+    // appsettings.Development.json points DestinationUrl here. It only exists
+    // in Development, never in a real deployment.
+    app.MapPost("/dev/destination", async (HttpRequest request, ILogger<Program> logger) =>
+    {
+        using var reader = new StreamReader(request.Body);
+        string body = await reader.ReadToEndAsync();
+
+        logger.LogInformation("Dev destination received delivery {DeliveryId}: {Body}",
+            request.Headers[DeliveryService.DeliveryIdHeader].ToString(), body);
+
+        return Results.Ok();
+    });
 }
 
 app.MapControllers();
+app.MapHealthChecks("/health");
 
 app.Run();
 
