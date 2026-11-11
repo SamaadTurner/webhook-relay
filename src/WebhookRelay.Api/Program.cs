@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using WebhookRelay.Api.Data;
 using WebhookRelay.Api.Options;
+using WebhookRelay.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +15,21 @@ builder.Services.AddSingleton(TimeProvider.System);
 
 builder.Services.AddDbContext<RelayDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("Relay")));
+
+builder.Services.AddScoped<DailyBudget>();
+
+// DeliveryService gets its own HttpClient. The timeout matters: without one,
+// a destination that never answers would block the worker forever.
+builder.Services.AddHttpClient<DeliveryService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+
+bool workerEnabled = builder.Configuration.GetValue("Relay:WorkerEnabled", true);
+if (workerEnabled)
+{
+    builder.Services.AddHostedService<DeliveryWorker>();
+}
 
 var app = builder.Build();
 
