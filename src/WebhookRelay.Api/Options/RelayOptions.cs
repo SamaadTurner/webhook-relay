@@ -24,10 +24,16 @@ public class RelayOptions
     // How many events the worker picks up per check
     public int BatchSize { get; set; } = 20;
 
+    // Delivered events older than this many days are deleted. 0 keeps them forever.
+    public int RetentionDays { get; set; } = 30;
+
+    // How often the cleanup looks for old events to delete
+    public int CleanupIntervalMinutes { get; set; } = 60;
+
     // Largest request body we accept, in bytes
     public int MaxPayloadBytes { get; set; } = 262144;
 
-    // Tests turn this off so the worker doesn't run in the background
+    // Tests turn this off so the workers don't run in the background
     public bool WorkerEnabled { get; set; } = true;
 
     // Required in the X-Api-Key header for the admin endpoints
