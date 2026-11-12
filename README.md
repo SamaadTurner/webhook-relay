@@ -37,6 +37,7 @@ flowchart LR
    to the destination.
 5. A `2xx` answer marks the event `Delivered`. Anything else schedules a retry
    (30s, 60s, 120s, ... capped at an hour). After 5 failed attempts it is `Failed`.
+6. Once an hour a second worker deletes events that were delivered more than 30 days ago.
 
 ## Run it locally
 
@@ -125,6 +126,8 @@ with `__` between levels (for example `Relay__DailyCallBudget=500`).
 | `MaxDelaySeconds` | 3600 | Longest wait between retries |
 | `PollIntervalSeconds` | 5 | How often the worker looks for work |
 | `BatchSize` | 20 | Events picked up per look |
+| `RetentionDays` | 30 | Delivered events older than this are deleted. `0` keeps them forever |
+| `CleanupIntervalMinutes` | 60 | How often the cleanup runs |
 
 ## Tests
 
@@ -132,12 +135,14 @@ with `__` between levels (for example `Relay__DailyCallBudget=500`).
 dotnet test
 ```
 
-68 tests, all run in CI on every push:
+76 tests, all run in CI on every push:
 
 - **Unit tests** for the signature check and the retry delay.
 - **Delivery tests** that run the real delivery code against an in-memory SQLite
   database, a fake destination, and a fake clock. The fake clock is what lets a test
   say "30 seconds later" or "the next day" without waiting.
+- **Cleanup tests** that use the same fake clock to check what is deleted after 30
+  days and what is kept.
 - **API tests** that start the whole app in memory with `WebApplicationFactory` and
   call it over HTTP.
 
@@ -171,6 +176,13 @@ too low, which is the safe direction when the limit belongs to someone else.
 **Failed calls count against the budget.** The destination counts every request it
 receives, not just the ones that succeed, so the relay does too.
 
+**Why delete old events, and what does it cost?** Without a cleanup the table grows
+forever. Only `Delivered` events are deleted. `Failed` ones stay so they can be looked
+at and replayed. The cost is that the saved row is also how the relay spots a repeat.
+If a sender repeats a delivery ID after its event was cleaned up, the relay treats it
+as new. Thirty days is much longer than senders keep retrying, and the number can be
+changed or the cleanup turned off with `RetentionDays`.
+
 **Admin endpoints are locked when no key is set.** Leaving them open by default would
 be easy to miss in a deployment.
 
@@ -182,7 +194,6 @@ be easy to miss in a deployment.
   `UPDATE ... WHERE calls_used < limit` so two workers can't both take the last call.
 - **Run migrations as a deploy step** and not on startup.
 - **Per-destination routing.** Right now every source forwards to one URL.
-- **Clean up old events.** Delivered events are kept forever.
 - **Metrics and alerts** on the failed count and on the budget running low.
 
 ## Project layout
@@ -190,7 +201,7 @@ be easy to miss in a deployment.
 ```
 src/WebhookRelay.Api/
   Controllers/   webhook intake, admin endpoints, API key check
-  Services/      signature check, retry delay, daily budget, delivery, worker
+  Services/      signature check, retry delay, daily budget, delivery, cleanup, workers
   Models/        database classes and API responses
   Data/          EF Core context and migrations
 tests/WebhookRelay.Tests/
