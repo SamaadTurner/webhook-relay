@@ -23,7 +23,7 @@ public class RelayApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Relay:AdminApiKey", AdminApiKey);
         builder.UseSetting("Relay:DestinationUrl", "http://destination.test/hook");
 
-        // The tests call the delivery code directly, so the background worker stays off
+        // The tests call the delivery and cleanup code directly, so the background workers stay off
         builder.UseSetting("Relay:WorkerEnabled", "false");
     }
 

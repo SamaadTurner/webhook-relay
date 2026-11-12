@@ -25,6 +25,7 @@ builder.Services.AddDbContext<RelayDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("Relay")));
 
 builder.Services.AddScoped<DailyBudget>();
+builder.Services.AddScoped<CleanupService>();
 
 // DeliveryService gets its own HttpClient. The timeout matters: without one,
 // a destination that never answers would block the worker forever.
@@ -37,6 +38,7 @@ bool workerEnabled = builder.Configuration.GetValue("Relay:WorkerEnabled", true)
 if (workerEnabled)
 {
     builder.Services.AddHostedService<DeliveryWorker>();
+    builder.Services.AddHostedService<CleanupWorker>();
 }
 
 // /health also checks that the database can be reached
